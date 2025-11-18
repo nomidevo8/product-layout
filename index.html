@@ -1,0 +1,269 @@
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(reorganizePhilipsAventDescription, 1000);
+
+    document.querySelectorAll('#tab-title-description a').forEach(tab => {
+        tab.addEventListener('click', () => {
+            setTimeout(reorganizePhilipsAventDescription, 500);
+        });
+    });
+});
+
+function reorganizePhilipsAventDescription() {
+    const panel = document.querySelector('#tab-description');
+    if (!panel || panel.dataset.reorganized) return;
+    panel.dataset.reorganized = 'true';
+
+    const heading = panel.querySelector('h2');
+    const root = panel.querySelector('.main-page') || panel.querySelector('.data-container') || panel;
+
+    // ==============================================================
+    // 1. Walk DOM and collect: [text, img, text, img, ...] in order
+    // ==============================================================
+    const elementsInOrder = [];
+
+    function walk(node) {
+        if (!node) return;
+
+        if (node.nodeType === 3) { // Text
+            const text = node.textContent.trim();
+            if (text) {
+                const last = elementsInOrder[elementsInOrder.length - 1];
+                if (last && last.type === 'text') {
+                    last.content += ' ' + text;
+                } else {
+                    elementsInOrder.push({ type: 'text', content: text });
+                }
+            }
+            return;
+        }
+
+        if (node.nodeType === 1) {
+            if (node.tagName === 'IMG' && node.src) {
+                elementsInOrder.push({ type: 'image', img: node.cloneNode() });
+                return;
+            }
+
+            if (node === heading || ['SCRIPT', 'STYLE'].includes(node.tagName)) return;
+
+            node.childNodes.forEach(walk);
+        }
+    }
+
+    walk(root);
+
+    if (elementsInOrder.length === 0) return;
+
+    // ==============================================================
+    // 2. Split into blocks: everything between two images = one block
+    // ==============================================================
+    const blocks = [];
+    let currentBlock = { text: '', images: [] };
+
+    for (let i = 0; i < elementsInOrder.length; i++) {
+        const el = elementsInOrder[i];
+
+        if (el.type === 'image') {
+            // If we have pending text → save as block with this image
+            if (currentBlock.text.trim()) {
+                currentBlock.images.push(el.img);
+                blocks.push({ ...currentBlock });
+                currentBlock = { text: '', images: [] };
+            } else {
+                // Image with no text before it → start new block
+                currentBlock.images.push(el.img);
+            }
+        } else {
+            // Text
+            currentBlock.text += ' ' + el.content;
+        }
+    }
+
+    // Don't forget last block (text after last image)
+    if (currentBlock.text.trim() || currentBlock.images.length > 0) {
+        blocks.push(currentBlock);
+    }
+
+    // ==============================================================
+    // 3. Build layout
+    // ==============================================================
+    const container = document.createElement('div');
+    container.className = 'avent-perfect-layout';
+    container.style.cssText = `
+        max-width: 1200px;
+        margin: 60px auto;
+        font-family: neuefrutigerworld_w02, arial, helvetica, sans-serif;
+    `;
+
+    let rowIndex = 0;
+
+    blocks.forEach(block => {
+        const hasImage = block.images.length > 0;
+        const hasText = block.text.trim() !== '';
+
+        if (hasImage && hasText) {
+            // Perfect pair: text + image(s)
+            const row = document.createElement('div');
+            row.style.cssText = `
+                display: flex;
+                flex-wrap: wrap;
+                gap: 60px;
+                margin: 20px 0;
+                align-items: center;
+                border: 1px solid black;
+                padding: 30px;
+            `;
+
+            const left = document.createElement('div');
+            const right = document.createElement('div');
+            left.style = right.style = 'flex: 1; min-width: 300px;';
+
+            const processedText = block.text
+                .replace(/98% teat acceptance/gi, '<strong style="color:#42145f;">98% teat acceptance</strong>')
+                .replace(/glow-in-the-dark/gi, '<strong style="color:#42145f;">glow-in-the-dark</strong>');
+
+            left.innerHTML = `<div style="font-size:16px; line-height:1.8; color:#050505;">${processedText}</div>`;
+
+            const imgDiv = document.createElement('div');
+            imgDiv.style.textAlign = 'center';
+
+            block.images.forEach(imgNode => {
+                const img = imgNode.cloneNode();
+                img.style.cssText = 'max-width:100%; height:auto; border-radius:20px; margin:15px 0;';
+                imgDiv.appendChild(img);
+            });
+
+            right.appendChild(imgDiv);
+
+            const imageFirst = rowIndex % 2 === 1;
+
+            if (imageFirst) {
+                row.appendChild(right);
+                row.appendChild(left);
+            } else {
+                row.appendChild(left);
+                row.appendChild(right);
+            }
+
+            container.appendChild(row);
+            rowIndex++;
+        }
+        else if (hasText) {
+            // Only text → one block on left
+            const row = document.createElement('div');
+            row.style.cssText = 'display:flex; gap:60px; margin:20px 0;';
+
+            const left = document.createElement('div');
+            left.style.cssText = 'flex:1; min-width:300px;';
+
+            const processedText = block.text
+                .replace(/98% teat acceptance/gi, '<strong style="color:#42145f;">98% teat acceptance</strong>')
+                .replace(/glow-in-the-dark/gi, '<strong style="color:#42145f;">glow-in-the-dark</strong>');
+
+            left.innerHTML = `<div style="font-size:16px; line-height:1.8; color:#050505;">${processedText}</div>`;
+            row.appendChild(left);
+            row.appendChild(document.createElement('div')); // empty right
+            container.appendChild(row);
+        }
+        else if (hasImage) {
+            // Only image(s) → centered grid
+            block.images.forEach(imgNode => {
+                const row = document.createElement('div');
+                row.style.cssText = 'display:flex; justify-content:center; margin:20px 0;';
+                const wrapper = document.createElement('div');
+                wrapper.style.maxWidth = '700px';
+                wrapper.style.width = '100%';
+                wrapper.style.textAlign = 'center';
+
+                const img = imgNode.cloneNode();
+                img.style.cssText = 'max-width:100%; height:auto; border-radius:20px;';
+                wrapper.appendChild(img);
+                row.appendChild(wrapper);
+                container.appendChild(row);
+            });
+        }
+    });
+
+    // ==============================================================
+    // 4. Final insert
+    // ==============================================================
+    panel.innerHTML = '';
+    if (heading) {
+        heading.style.cssText = 'font-size:42px !important; color:#42145f; text-align:center; margin:50px 0; font-weight:900; letter-spacing:-1.2px;';
+        panel.appendChild(heading);
+    }
+    panel.appendChild(container);
+}
+</script>
+
+<style>
+
+@media (max-width: 768px){
+div#tab-description {
+    padding: 0;
+}
+
+.avent-perfect-layout > div {
+padding: 10px !important;}
+
+.avent-perfect-layout > div > div{
+min-width: fit-content !important;
+}
+}
+
+/* Make table cell a grid */
+#tab-description table.table td {
+  display: grid;
+  grid-template-columns: 1fr 1fr; /* left 50% for title+para, right 50% for image */
+  align-items: center;
+  gap: 20px;
+}
+
+/* Left side: title + paragraph */
+#tab-description table.table td .p-feature-title,
+#tab-description table.table td .p-body-copy-02 {
+  grid-column: 1;
+}
+
+/* Stack title and paragraph vertically */
+#tab-description table.table td .p-feature-title {
+  margin-bottom: 10px;
+}
+
+#tab-description table.table td .p-body-copy-02 {
+  margin: 0;
+}
+
+/* Right side: image */
+#tab-description table.table td .p-s12__feature-image {
+  grid-column: 2;
+  text-align: center;
+}
+
+#tab-description table.table td .p-s12__feature-image img {
+  max-width: 100%;
+  height: auto;
+  display: inline-block;
+}
+
+/* Responsive: stack left + right vertically on small screens */
+@media (max-width: 768px) {
+  #tab-description table.table td {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+  }
+
+  #tab-description table.table td .p-feature-title,
+  #tab-description table.table td .p-body-copy-02,
+  #tab-description table.table td .p-s12__feature-image {
+    grid-column: 1;
+    text-align: center;
+  }
+
+  #tab-description table.table td .p-feature-title {
+    margin-bottom: 5px;
+  }
+}
+
+
+</style>
