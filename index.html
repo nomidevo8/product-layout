@@ -151,10 +151,10 @@ function reorganizePhilipsAventDescription() {
         else if (hasText) {
             // Only text → one block on left
             const row = document.createElement('div');
-            row.style.cssText = 'display:flex; gap:60px; margin:20px 0;';
+            row.style.cssText = 'display:flex; margin:20px 0;';
 
             const left = document.createElement('div');
-            left.style.cssText = 'flex:1; min-width:300px;';
+            left.style.cssText = 'flex:1; min-width:300px; border: 1px solid black; padding: 30px; ';
 
             const processedText = block.text
                 .replace(/98% teat acceptance/gi, '<strong style="color:#42145f;">98% teat acceptance</strong>')
